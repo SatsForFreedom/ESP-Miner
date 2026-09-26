@@ -54,6 +54,9 @@ export class SystemApiService {
 
     return of(
       {
+        powerLimitMilliwatts: 12000,
+        meanEfficiency: 24.5,
+        sessionId: "mock-session",
         power: 11.670000076293945,
         voltage: 5208.75,
         current: 2237.5,

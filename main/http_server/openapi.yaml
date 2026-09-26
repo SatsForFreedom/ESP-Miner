@@ -344,6 +344,17 @@ components:
         boardVersion:
           type: string
           description: Hardware board version
+        powerLimitMilliwatts:
+          type: integer
+          minimum: 0
+          maximum: 15000
+          description: BM1397 power limit in milliwatts; 0 disables it except on board 2.A (12 W default).
+        meanEfficiency:
+          type: number
+          description: Smoothed mining efficiency in watts per terahash per second.
+        sessionId:
+          type: string
+          description: Current Stratum V1 extranonce session identifier; empty when unavailable.
         coreVoltage:
           type: number
           description: Configured ASIC core voltage
@@ -962,6 +973,11 @@ components:
           pattern: "^[a-zA-Z0-9-]+$"
           examples:
             - "esp-miner-1"
+        powerLimitMilliwatts:
+          type: integer
+          minimum: 0
+          maximum: 15000
+          description: BM1397 power limit in milliwatts; 0 disables it except on board 2.A (12 W default).
         coreVoltage:
           type: integer
           description: ASIC core voltage in millivolts
