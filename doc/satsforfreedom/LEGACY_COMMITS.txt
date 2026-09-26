@@ -1,0 +1,39 @@
+1822dac Improved OLED text
+c7f6f6d removing latestRelease
+e3f3078 Added max core voltage validation to protect the ASIC
+5b5b6ad Fixed merge error while saving MaxPower
+c538f65 Merge commit '45102fd8cb3688ca83d0c10b2cf0dca4bfbb9c8a' into SatsForFreedom
+cde969a Creating another task to manage power to avoid merge conflicts.
+a26e1e9 Adjust vcore without restarting the device
+fe97066 Check the BM1397's registers before starting the firmware
+c7540fb Improve vcore voltage to reg
+be25bbb Fix power_setpoint when copy it from maxPower
+5de87b6 improving efficiency computation.
+15d1e61 Improve power control
+c2fcd34 Adjust the power consumption dynamically
+0b34cc6 Add session ID in the AxeOs
+cf339fa Add PCB Revision to AxeOs
+0eb9965 improve memory allocation assessment
+2e3e19d Fix invalid call for the _update_hashrate
+46505cc Improving malloc usage
+6d75b08 Update ESP Log
+2ce9435 Add moving average filter for efficiency
+41130ad Fix - Restart the ASIC if it fails to start at maximum UART speed.
+3811f93 Change the MaxFrequency in the AxeOs
+7c7246b importing VSC debug configuration
+b9995e1 Fixing NVS key that were too long
+35cea1f Using maxFrequency to calculate the job delay
+07086cc Reboot the firmware if the ASIC returns many null results
+8d5c02e static allocation for the valid jobs array
+e833bb2 Fix log and code refactoring
+72a5c1d Increase the time delay in the USER_INPUT_task
+fd14028 Verify for valid nonce
+59a2b39 refactoring BM1397_send_hash_frequency
+0279e2e Fix the tasks starting sequence.
+b4895e7 Verify for valid VCore
+12b6958 add custom settings for PCB 2.A
+8f2379f Verify if BM1397 is present and scan for valid UART baudrate
+20d9b57 Fix the max frequency storage  and usage
+2eb00de revise AxeOs frequency and add MaxPower
+f8412e8 Redesign power management
+6cbea32 Add custom settings for DS4432
