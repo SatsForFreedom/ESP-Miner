@@ -1,3 +1,4 @@
+#include "satsforfreedom/satsforfreedom.h"
 #include <inttypes.h>
 #include <string.h>
 #include "esp_log.h"
@@ -641,7 +642,7 @@ static void update_stats_background_labels(SystemModule * module, PowerManagemen
     }
 
     if (power_management->power > 0 && module->current_hashrate > 0) {
-        float efficiency = power_management->power / (module->current_hashrate / 1000.0f);
+        float efficiency = sff_efficiency(power_management->power / (module->current_hashrate / 1000.0f));
         lv_label_set_text_fmt(stats_efficiency_label, "%.1f", efficiency);
     } else {
         lv_label_set_text(stats_efficiency_label, "--");
@@ -793,7 +794,7 @@ static void screen_update_cb(lv_timer_t * timer)
 
     if (current_power != power_management->power || current_hashrate != module->current_hashrate) {
         if (power_management->power > 0 && module->current_hashrate > 0) {
-            float efficiency = power_management->power / (module->current_hashrate / 1000.0);
+            float efficiency = sff_efficiency(power_management->power / (module->current_hashrate / 1000.0));
             lv_label_set_text_fmt(stats_efficiency_label, "J/Th: %.2f", efficiency);
         }
         current_power = power_management->power;

@@ -1,3 +1,4 @@
+#include "satsforfreedom/satsforfreedom.h"
 #include <pthread.h>
 #include <fcntl.h>
 #include <string.h>
@@ -959,6 +960,8 @@ bool check_settings_and_update(const cJSON * const root, char **redirect_url)
             result = false;
         }
     }
+
+    if (!sff_validate_settings(root)) result = false;
 
     // Validate pools array separately
     cJSON *pools_item = cJSON_GetObjectItem(root, "pools");

@@ -4,6 +4,8 @@
 
 #include "i2c_bitaxe.h"
 #include "DS4432U.h"
+#include "satsforfreedom/satsforfreedom.h"
+#include "satsforfreedom/control.h"
 
 // DS4432U+ -- Adjustable current DAC
 #define DS4432U_SENSOR_ADDR 0x48 // Slave address of the DS4432U+
@@ -48,6 +50,11 @@ esp_err_t DS4432U_set_current_code(uint8_t output, uint8_t code) {
 }
 
 esp_err_t DS4432U_set_voltage(float vout) {
+    if (sff_board()) {
+        uint8_t code;
+        if (!sff_voltage_code(vout, &code)) return ESP_ERR_INVALID_ARG;
+        return DS4432U_set_current_code(0, code);
+    }
     float change;
     uint8_t reg;
 

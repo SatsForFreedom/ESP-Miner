@@ -18,6 +18,7 @@
 #include "cjson_utils.h"
 #include "statistics_task.h"
 #include "asic.h"
+#include "satsforfreedom/satsforfreedom.h"
 
 
 static const char *get_reset_reason_str(esp_reset_reason_t reason)
@@ -46,6 +47,7 @@ static const char *get_reset_reason_str(esp_reset_reason_t reason)
 static void system_api_add_telemetry(cJSON *root, GlobalState *g) {
     if (!root || !g) return;
 
+    sff_add_info(root, g);
     // Power Group
     cJSON_AddFloatToObject(root, "power", g->POWER_MANAGEMENT_MODULE.power);
     cJSON_AddFloatToObject(root, "voltage", g->POWER_MANAGEMENT_MODULE.voltage);

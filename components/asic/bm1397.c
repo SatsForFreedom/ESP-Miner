@@ -80,6 +80,7 @@ static uint32_t prev_nonce = 0;
 static task_result result;
 
 static int address_interval;
+static bool sff_bm1397_active;
 
 /// @brief
 /// @param ftdi
@@ -183,8 +184,12 @@ float BM1397_send_hash_frequency(float target_freq)
     return frequency;
 }
 
+#include "bm1397_satsforfreedom.inc"
+
 uint8_t BM1397_init(GlobalState * GLOBAL_STATE)
 {
+    sff_bm1397_active = GLOBAL_STATE->DEVICE_CONFIG.board_version &&
+                        strcmp(GLOBAL_STATE->DEVICE_CONFIG.board_version, "2.A") == 0;
     // send the init command
     _send_read_address();
 
@@ -207,15 +212,19 @@ uint8_t BM1397_init(GlobalState * GLOBAL_STATE)
 
     unsigned char init[6] = {0x00, CLOCK_ORDER_CONTROL_0, 0x00, 0x00, 0x00, 0x00}; // init1 - clock_order_control0
     _send_BM1397((TYPE_CMD | GROUP_ALL | CMD_WRITE), init, 6, BM1397_SERIALTX_DEBUG);
+    if (sff_bm1397_active && !sff_bm1397_verify(init)) return 0;
 
     unsigned char init2[6] = {0x00, CLOCK_ORDER_CONTROL_1, 0x00, 0x00, 0x00, 0x00}; // init2 - clock_order_control1
     _send_BM1397((TYPE_CMD | GROUP_ALL | CMD_WRITE), init2, 6, BM1397_SERIALTX_DEBUG);
+    if (sff_bm1397_active && !sff_bm1397_verify(init2)) return 0;
 
     unsigned char init3[9] = {0x00, ORDERED_CLOCK_ENABLE, 0x00, 0x00, 0x00, 0x01}; // init3 - ordered_clock_enable
     _send_BM1397((TYPE_CMD | GROUP_ALL | CMD_WRITE), init3, 6, BM1397_SERIALTX_DEBUG);
+    if (sff_bm1397_active && !sff_bm1397_verify(init3)) return 0;
 
     unsigned char init4[9] = {0x00, CORE_REGISTER_CONTROL, 0x80, 0x00, 0x80, 0x74}; // init4 - init_4_?
     _send_BM1397((TYPE_CMD | GROUP_ALL | CMD_WRITE), init4, 6, BM1397_SERIALTX_DEBUG);
+    if (sff_bm1397_active && !sff_bm1397_verify(init4)) return 0;
 
     uint16_t difficulty = GLOBAL_STATE->DEVICE_CONFIG.family.asic.difficulty;
 
@@ -226,15 +235,21 @@ uint8_t BM1397_init(GlobalState * GLOBAL_STATE)
 
     unsigned char init5[9] = {0x00, PLL3_PARAMETER, 0xC0, 0x70, 0x01, 0x11}; // init5 - pll3_parameter
     _send_BM1397((TYPE_CMD | GROUP_ALL | CMD_WRITE), init5, 6, BM1397_SERIALTX_DEBUG);
+    if (sff_bm1397_active && !sff_bm1397_verify(init5)) return 0;
 
     unsigned char init6[9] = {0x00, FAST_UART_CONFIGURATION, 0x06, 0x00, 0x00, 0x0F}; // init6 - fast_uart_configuration
     _send_BM1397((TYPE_CMD | GROUP_ALL | CMD_WRITE), init6, 6, BM1397_SERIALTX_DEBUG);
+    if (sff_bm1397_active && !sff_bm1397_verify(init6)) return 0;
 
     // Baud formula = 25M/((denominator+1)*8)
     // The denominator is 5 bits found in the misc_control (bits 9-13)
     // default divider of 26 (11010) for 115,749
     unsigned char baudrate[9] = {0x00, MISC_CONTROL, 0x00, 0x00, 0b01111010, 0b00110001}; // baudrate - misc_control
     _send_BM1397((TYPE_CMD | GROUP_ALL | CMD_WRITE), baudrate, 6, BM1397_SERIALTX_DEBUG);
+
+    if (sff_bm1397_active) {
+        GLOBAL_STATE->POWER_MANAGEMENT_MODULE.actual_frequency = BM1397_send_hash_frequency(50.0f);
+    }
 
     //ramp up the hash frequency
     do_frequency_transition(GLOBAL_STATE, BM1397_send_hash_frequency);
@@ -244,6 +259,7 @@ uint8_t BM1397_init(GlobalState * GLOBAL_STATE)
 
 int BM1397_set_max_baud(void)
 {
+    if (sff_bm1397_active) return sff_bm1397_baud();
     // divider of 0 for 3,125,000
     ESP_LOGI(TAG, "Setting max baud of 3125000");
     unsigned char baudrate[9] = {0x00, MISC_CONTROL, 0x00, 0x00, 0b01100000, 0b00110001};

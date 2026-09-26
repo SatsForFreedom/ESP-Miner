@@ -13,6 +13,7 @@
 #include "freertos/task.h"
 #include "scoreboard.h"
 #include "self_test.h"
+#include "satsforfreedom/satsforfreedom.h"
 
 static const char *TAG = "asic_result";
 
@@ -22,6 +23,7 @@ void ASIC_result_task(void *pvParameters)
 
     while (1)
     {
+        sff_result(GLOBAL_STATE, false);
         // Check if ASIC is initialized before trying to process work
         if (!GLOBAL_STATE->ASIC_initalized) {
             vTaskDelay(100 / portTICK_PERIOD_MS);
@@ -30,6 +32,7 @@ void ASIC_result_task(void *pvParameters)
 
         task_result *asic_result = ASIC_process_work(GLOBAL_STATE);
 
+        if (asic_result) sff_result(GLOBAL_STATE, true);
         if (asic_result == NULL)
         {
             continue;

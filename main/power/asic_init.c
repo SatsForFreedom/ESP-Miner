@@ -7,6 +7,7 @@
 #include "asic_common.h"
 #include "serial.h"
 #include "asic_reset.h"
+#include "satsforfreedom/satsforfreedom.h"
 
 static const char *TAG = "asic_init";
 
@@ -20,6 +21,7 @@ static const char *TAG = "asic_init";
 
 uint8_t asic_initialize(GlobalState *GLOBAL_STATE, asic_init_mode_t mode, uint32_t stabilization_delay_ms)
 {
+    if (sff_check_voltage(GLOBAL_STATE) != ESP_OK) return 0;
     const char *mode_str = (mode == ASIC_INIT_COLD_BOOT) ? "cold boot" : "recovery";
     const uint8_t max_attempts = GLOBAL_STATE->DEVICE_CONFIG.family.asic.init_retry_attempts > 0
                                      ? GLOBAL_STATE->DEVICE_CONFIG.family.asic.init_retry_attempts
@@ -76,7 +78,13 @@ uint8_t asic_initialize(GlobalState *GLOBAL_STATE, asic_init_mode_t mode, uint32
         chip_count = ASIC_init(GLOBAL_STATE);
 
         if (chip_count > 0) {
-            break;
+            int baud = ASIC_set_max_baud(GLOBAL_STATE);
+            if (baud > 0 && SERIAL_set_baud(baud) == ESP_OK) {
+                SERIAL_clear_buffer();
+                break;
+            }
+            chip_count = 0;
+            GLOBAL_STATE->SYSTEM_MODULE.asic_status = "ASIC UART configuration failed";
         }
     }
     
@@ -86,14 +94,6 @@ uint8_t asic_initialize(GlobalState *GLOBAL_STATE, asic_init_mode_t mode, uint32
         GLOBAL_STATE->SYSTEM_MODULE.asic_status = chain_error != NULL ? chain_error : "ASIC chain detection failed";
         return 0;
     }
-
-    int max_baud = ASIC_set_max_baud(GLOBAL_STATE);
-    if (max_baud == 0 || SERIAL_set_baud(max_baud) != ESP_OK) {
-        GLOBAL_STATE->SYSTEM_MODULE.asic_status = "ASIC UART configuration failed";
-        ESP_LOGE(TAG, "Failed to configure ASIC UART");
-        return 0;
-    }
-    SERIAL_clear_buffer();
 
     GLOBAL_STATE->ASIC_initalized = true;
     

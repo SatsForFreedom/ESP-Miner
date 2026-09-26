@@ -94,8 +94,6 @@ void app_main(void)
 
     // Allow the ASIC reset line to settle before continuing startup.
     vTaskDelay(100 / portTICK_PERIOD_MS);
-    // Init ADC
-    ADC_init();
 
     // initialize the ESP32 NVS
     if (nvs_config_init() != ESP_OK) {
@@ -131,6 +129,8 @@ void app_main(void)
         ESP_LOGE(TAG, "Failed to init device config");
         return;
     }
+
+    ADC_init();
 
     // Init I2C
     if (GLOBAL_STATE.DEVICE_CONFIG.pins.i2c != NULL) {
