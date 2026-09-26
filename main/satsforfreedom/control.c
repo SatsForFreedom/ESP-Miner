@@ -1,6 +1,16 @@
 #include "control.h"
 #include <math.h>
 
+/************************************************************************************************************
+ * @brief Convert a board 2.A core-voltage request to a DS4432U DAC code.
+ * @param[in] volts Requested voltage in volts; must be finite and in [1, 1.5].
+ * @param[out] code Non-NULL destination for the direction/magnitude byte.
+ *                  Left unchanged if conversion fails.
+ * @return true when a code is produced; false for invalid input or magnitude.
+ * @note Uses the board's 33 kOhm/22 kOhm feedback and 100 kOhm full-scale
+ *       resistors, with the legacy one-step correction clamped at zero.
+ *       Pure calculation: does not access I2C or change regulator voltage.
+ ***********************************************************************************************************/
 bool sff_voltage_code(float volts, uint8_t *code)
 {
     if (!code || !isfinite(volts) || volts < 1.0f || volts > 1.5f) return false;
@@ -14,6 +24,21 @@ bool sff_voltage_code(float volts, uint8_t *code)
     return true;
 }
 
+/************************************************************************************************************
+ * @brief Calculate one bounded power-control frequency adjustment.
+ * @param[in] current Current requested frequency in MHz; invalid or sub-50
+ *                    values start from 50 MHz.
+ * @param[in] maximum Frequency ceiling in MHz, capped at 580 MHz.
+ * @param[in] watts Measured input power in watts; must be finite and positive.
+ * @param[in] limit Power target in watts; must be finite and at least 1 W.
+ * @param[in] temp Chip temperature in degrees Celsius; finite and nonnegative.
+ * @return Next target between 50 MHz and the capped valid ceiling, or 50 MHz
+ *         for an invalid ceiling or measurement/limit input.
+ * @note Stateless calculation for an approximately 10 Hz loop. Reduces the
+ *       power target from 65 to 75 C. Each adjustment is limited to -20/+2 MHz
+ *       before applying frequency bounds; a lowered ceiling takes precedence.
+ *       Does not drive hardware or guarantee an instantaneous power limit.
+ ***********************************************************************************************************/
 float sff_power_frequency(float current, float maximum, float watts, float limit, float temp)
 {
     if (!isfinite(maximum) || maximum < 50.0f) return 50.0f;
