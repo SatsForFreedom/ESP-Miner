@@ -20,10 +20,10 @@ Integration edits stay at the existing board initialization, regulator, ASIC sta
 
 | Legacy customization | Modern implementation / replacement |
 | --- | --- |
-| PCB 2.A selection, ADC channel 3, GPIO14 active-low power enable, GPIO10 BI | Board profile and small ADC/regulator integration hooks; ADC initializes after board selection. |
+| PCB 2.A selection, PGOOD GPIO11 read, ADC channel 3, GPIO14 active-low power enable, GPIO10 BI | Board profile and small startup hooks; PGOOD is logged before ADC setup, the DS4432U target is written while the regulator is disabled, then GPIO14 enables it. ADC voltage verification still gates ASIC initialization. |
 | DS4432 33k/22k/100k resistor calibration | Pure `sff_voltage_code`; preserves calibration, prevents nominal-voltage unsigned underflow, rejects nonfinite/out-of-range values. |
 | 1.5 V upper bound and measured-voltage startup validation | Board 2.A regulator/API checks; ten ADC samples, 150 mV tolerance, power off and hardware fault on mismatch. Compares with requested voltage, not an obsolete compile-time default. |
-| Uncommitted regulator startup change | Enable before setting voltage, wait 100 ms; retains removal of the premature PGOOD check. |
+| Regulator startup order | Check PGOOD before ADC setup, program DS4432U while TPS40305 is disabled, then enable GPIO14 and wait 100 ms. |
 | Configurable power target and maximum frequency | `powerLimitMilliwatts` controls BM1397 frequency; upstream `frequency` is the ceiling, `actualFrequency` is measured/applied frequency. Board 2.A defaults to 12 W. |
 | Power/temperature cascade and sensor filtering | Bounded controller with filtered power and immediate response to excess power; upstream's stronger thermal shutdown remains authoritative. Raw thermal protection readings are deliberately not smoothed. |
 | Live voltage adjustment | Upstream power task already applies voltage settings without reboot; no HTTP handler performs direct I2C writes. |

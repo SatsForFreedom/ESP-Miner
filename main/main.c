@@ -23,6 +23,7 @@
 #include "asic.h"
 #include "bap/bap.h"
 #include "device_config.h"
+#include "satsforfreedom/satsforfreedom.h"
 #include "connect.h"
 #include "asic_reset.h"
 #include "asic_init.h"
@@ -130,6 +131,10 @@ void app_main(void)
         return;
     }
 
+    // Check the TPS40305 status before configuring the ADC and regulator.
+    // Like the original board check, a low PGOOD signal is logged but does
+    // not prevent startup; the measured-voltage check gates ASIC initialization.
+    sff_check_pgood();
     ADC_init();
 
     // Init I2C

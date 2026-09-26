@@ -106,7 +106,8 @@ static void configure_asic_power_enable(GlobalState * GLOBAL_STATE)
         return;
     }
 
-    bool enable_power = GLOBAL_STATE->DEVICE_CONFIG.asic_enable;
+    // Board 2.A loads the DAC target before enabling the regulator.
+    bool enable_power = GLOBAL_STATE->DEVICE_CONFIG.asic_enable && !sff_board();
 
     if (GLOBAL_STATE->DEVICE_CONFIG.plug_sense) {
         gpio_config_t barrel_jack_conf = {
@@ -114,7 +115,7 @@ static void configure_asic_power_enable(GlobalState * GLOBAL_STATE)
             .mode = GPIO_MODE_INPUT,
         };
         gpio_config(&barrel_jack_conf);
-        enable_power = gpio_get_level(GPIO_PLUG_SENSE) == 1 || enable_power;
+        enable_power = (gpio_get_level(GPIO_PLUG_SENSE) == 1 || enable_power) && !sff_board();
     }
 
     gpio_config_t asic_enable_conf = {
@@ -141,12 +142,23 @@ esp_err_t VCORE_init(GlobalState * GLOBAL_STATE)
     if (GLOBAL_STATE->DEVICE_CONFIG.DS4432U) {
         ESP_RETURN_ON_ERROR(DS4432U_init(), TAG, "DS4432 init failed!");
     }
+    if (sff_board() && GLOBAL_STATE->DEVICE_CONFIG.DS4432U) {
+        float target = nvs_config_get_u16(NVS_CONFIG_ASIC_VOLTAGE) / 1000.0f;
+        ESP_RETURN_ON_ERROR(DS4432U_set_voltage(target), TAG, "Board 2.A voltage setup failed!");
+    }
     if (GLOBAL_STATE->DEVICE_CONFIG.INA260) {
         ESP_RETURN_ON_ERROR(INA260_init(), TAG, "INA260 init failed!");
     }
     if (GLOBAL_STATE->DEVICE_CONFIG.TPS546) {
         TPS546_CONFIG tps_config = get_tps546_config(&GLOBAL_STATE->DEVICE_CONFIG.family);
         ESP_RETURN_ON_ERROR(TPS546_init(tps_config), TAG, "TPS546 init failed!");
+    }
+
+    if (sff_board() && GLOBAL_STATE->DEVICE_CONFIG.asic_enable) {
+        // Match the board startup sequence: program DS4432U before TPS40305 ON.
+        bool active_high = GLOBAL_STATE->DEVICE_CONFIG.asic_enable_active_high;
+        gpio_set_level(GPIO_ASIC_ENABLE, active_high);
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 
     vcore_initialized = true;
