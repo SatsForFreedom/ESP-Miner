@@ -62,6 +62,7 @@ static Settings settings[NVS_CONFIG_COUNT] = {
     [NVS_CONFIG_SECONDARY_POOL_INDEX]                  = {.nvs_key_name = "sec_idx",         .type = TYPE_U16,   .default_value = {.u16 = 1},                                           .rest_name = "secondaryPoolIndex",                 .min = 0,  .max = MAX_POOLS - 1},
     [NVS_CONFIG_USE_FALLBACK_STRATUM]                  = {.nvs_key_name = "usefbstartum",    .type = TYPE_BOOL,                                                                         .rest_name = "useFallbackStratum",                 .min = 0,  .max = 1},
 
+    [NVS_CONFIG_SFF_POWER_LIMIT] = {.nvs_key_name = "asicMaxPower", .type = TYPE_U16, .rest_name = "powerLimitMilliwatts", .min = 0, .max = 15000},
     [NVS_CONFIG_ASIC_FREQUENCY]                        = {.nvs_key_name = "asicfrequency_f", .type = TYPE_FLOAT, .default_value = {.f   = CONFIG_ASIC_FREQUENCY},                       .rest_name = "frequency",                          .min = 1,  .max = UINT16_MAX},
     [NVS_CONFIG_ASIC_VOLTAGE]                          = {.nvs_key_name = "asicvoltage",     .type = TYPE_U16,   .default_value = {.u16 = CONFIG_ASIC_VOLTAGE},                         .rest_name = "coreVoltage",                        .min = 1,  .max = UINT16_MAX},
     [NVS_CONFIG_OVERCLOCK_ENABLED]                     = {.nvs_key_name = "oc_enabled",      .type = TYPE_BOOL,                                                                         .rest_name = "overclockEnabled",                   .min = 0,  .max = 1},
@@ -282,7 +283,8 @@ static void nvs_config_init_fallback(NvsConfigKey key, Settings * setting)
     }
     if (key == NVS_CONFIG_ASIC_FREQUENCY) {
         if (nvs_find_key(handle, setting->nvs_key_name, NULL) == ESP_ERR_NVS_NOT_FOUND) {
-            uint16_t val = read_legacy_u16(handle, FALLBACK_KEY_ASICFREQUENCY, 0);
+            uint16_t val = read_legacy_u16(handle, "asicMaxfreq", 0);
+            if (val == 0) val = read_legacy_u16(handle, FALLBACK_KEY_ASICFREQUENCY, 0);
             if (val > 0) {
                 ESP_LOGI(TAG, "Migrating NVS config %s to %s (%d)", FALLBACK_KEY_ASICFREQUENCY, setting->nvs_key_name, val);
                 char buf[32];

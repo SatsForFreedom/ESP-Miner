@@ -17,6 +17,7 @@
 #include "statistics_task.h"
 #include "asic.h"
 #include "yyjson_utils.h"
+#include "satsforfreedom/satsforfreedom.h"
 
 static const char *get_reset_reason_str(esp_reset_reason_t reason)
 {
@@ -44,6 +45,7 @@ static const char *get_reset_reason_str(esp_reset_reason_t reason)
 static void system_api_add_telemetry(yyjson_mut_doc *doc, yyjson_mut_val *root, GlobalState *g) {
     if (!doc || !root || !g) return;
 
+    sff_add_info(doc, root, g);
     // Power Group
     yyjson_mut_obj_add_float(doc, root, "power", g->POWER_MANAGEMENT_MODULE.power);
     yyjson_mut_obj_add_float(doc, root, "voltage", g->POWER_MANAGEMENT_MODULE.voltage);

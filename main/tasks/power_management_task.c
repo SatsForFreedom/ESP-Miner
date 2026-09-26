@@ -12,6 +12,7 @@
 #include "asic_reset.h"
 #include "difficulty_controller.h"
 #include "driver/uart.h"
+#include "satsforfreedom/satsforfreedom.h"
 
 #define POLL_RATE 100
 #define MAX_TEMP 90.0
@@ -97,7 +98,7 @@ void POWER_MANAGEMENT_init_frequency(GlobalState * GLOBAL_STATE)
 {
     float frequency = nvs_config_get_float(NVS_CONFIG_ASIC_FREQUENCY);
 
-    GLOBAL_STATE->POWER_MANAGEMENT_MODULE.frequency_value = frequency;
+    GLOBAL_STATE->POWER_MANAGEMENT_MODULE.frequency_value = sff_board() ? 50.0f : frequency;
     GLOBAL_STATE->POWER_MANAGEMENT_MODULE.actual_frequency = 50.0;
     GLOBAL_STATE->POWER_MANAGEMENT_MODULE.expected_hashrate = expected_hashrate(GLOBAL_STATE);
     
@@ -248,6 +249,7 @@ void POWER_MANAGEMENT_task(void * pvParameters)
             last_core_voltage = core_voltage;
         }
 
+        asic_frequency = sff_frequency(GLOBAL_STATE, asic_frequency);
         if (asic_frequency != last_asic_frequency) {
             ESP_LOGI(TAG, "New ASIC frequency requested: %g MHz (current: %g MHz)", asic_frequency, last_asic_frequency);
             

@@ -1,3 +1,4 @@
+#include "satsforfreedom/satsforfreedom.h"
 #include <string.h>
 #include "esp_err.h"
 #include "esp_log.h"
@@ -130,6 +131,10 @@ esp_err_t display_init(GlobalState * GLOBAL_STATE)
             lvgl_port_unlock();
         }
         return ESP_OK;
+    }
+
+    if (sff_board() && GLOBAL_STATE->DISPLAY_CONFIG.display == SSD1306) {
+        disp_cfg.rotation.mirror_y = true;
     }
 
     lv_disp_t * disp = lvgl_port_add_disp(&disp_cfg);

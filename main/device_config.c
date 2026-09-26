@@ -4,6 +4,7 @@
 #include "global_state.h"
 #include "esp_log.h"
 #include "array.h"
+#include "satsforfreedom/satsforfreedom.h"
 
 static const char * TAG = "device_config";
 
@@ -59,6 +60,8 @@ esp_err_t device_config_init(GlobalState * GLOBAL_STATE)
         free(device_model);
         free(asic_model);
     }
+
+    sff_configure(GLOBAL_STATE);
 
     if (nvs_config_has_key(NVS_CONFIG_PLUG_SENSE)) {
         GLOBAL_STATE->DEVICE_CONFIG.plug_sense = nvs_config_get_bool(NVS_CONFIG_PLUG_SENSE);

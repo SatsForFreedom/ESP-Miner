@@ -13,8 +13,9 @@
 #include "global_state.h"
 #include "device_config.h"
 #include "vcore.h"
+#include "satsforfreedom/satsforfreedom.h"
 
-#define GPIO_ASIC_ENABLE CONFIG_GPIO_ASIC_ENABLE
+#define GPIO_ASIC_ENABLE sff_enable_pin(CONFIG_GPIO_ASIC_ENABLE)
 #define GPIO_PLUG_SENSE CONFIG_GPIO_PLUG_SENSE
 
 static const char *TAG = "vcore";
@@ -126,7 +127,7 @@ static void configure_asic_power_enable(GlobalState * GLOBAL_STATE)
     gpio_set_level(GPIO_ASIC_ENABLE, enable_power ? active_high : !active_high);
 
     if (enable_power) {
-        vTaskDelay(pdMS_TO_TICKS(20));
+        vTaskDelay(pdMS_TO_TICKS(sff_board() ? 100 : 20));
     }
 }
 
@@ -159,6 +160,7 @@ bool VCORE_is_initialized(void)
 
 esp_err_t VCORE_set_voltage(GlobalState * GLOBAL_STATE, float core_voltage)
 {
+    if (sff_board() && core_voltage != 0 && (!isfinite(core_voltage) || core_voltage < 1.0f || core_voltage > 1.5f)) return ESP_ERR_INVALID_ARG;
     ESP_LOGI(TAG, "Set ASIC voltage = %.3fV", core_voltage);
 
     // Enable/disable the ASIC power enable GPIO before touching the regulator
@@ -168,7 +170,7 @@ esp_err_t VCORE_set_voltage(GlobalState * GLOBAL_STATE, float core_voltage)
         gpio_set_level(GPIO_ASIC_ENABLE, enable_power ? active_high : !active_high);
 
         if (enable_power) {
-            vTaskDelay(pdMS_TO_TICKS(20));
+            vTaskDelay(pdMS_TO_TICKS(sff_board() ? 100 : 20));
         }
     }
 

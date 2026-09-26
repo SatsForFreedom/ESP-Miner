@@ -3,6 +3,7 @@
 #include "global_state.h"
 #include <lwip/tcpip.h>
 #include "stratum_v1_client.h"
+#include "satsforfreedom/satsforfreedom.h"
 #include "stratum_task.h"
 #include "stratum_api.h"
 #include "stratum_socket.h"
@@ -105,6 +106,7 @@ int stratum_v1_submit_share(GlobalState *GLOBAL_STATE, const asic_job_t *active_
 
 void stratum_v1_close_connection(GlobalState *GLOBAL_STATE)
 {
+    sff_session(NULL);
     pthread_mutex_lock(&GLOBAL_STATE->transport_mutex);
     esp_transport_handle_t transport = GLOBAL_STATE->transport;
     GLOBAL_STATE->transport = NULL;
@@ -347,6 +349,7 @@ esp_err_t stratum_v1_run(GlobalState *GLOBAL_STATE, uint16_t pool_idx)
                     v1_msg.extranonce_2_len = (v1_msg.extranonce_2_len < 0) ? 0 : MAX_EXTRANONCE_2_LEN;
                 }
                 s_v1_conn->extranonce2_len = (uint8_t)v1_msg.extranonce_2_len;
+                sff_session(v1_msg.extranonce_str);
                 if (v1_msg.extranonce_str && v1_msg.extranonce_str[0] != '\0') {
                     size_t slen = strlen(v1_msg.extranonce_str) / 2;
                     if (slen > sizeof(s_v1_conn->extranonce1)) slen = sizeof(s_v1_conn->extranonce1);

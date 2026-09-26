@@ -4,7 +4,8 @@
 #include "esp_adc/adc_cali_scheme.h"
 
 #define ADC_ATTEN   ADC_ATTEN_DB_12
-#define ADC_CHANNEL ADC_CHANNEL_1
+#include "satsforfreedom/satsforfreedom.h"
+#define ADC_CHANNEL (sff_board() ? ADC_CHANNEL_3 : ADC_CHANNEL_1)
 
 static const char * TAG = "adc";
 
