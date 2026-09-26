@@ -1,4 +1,13 @@
-/* Kept separate from the upstream driver to make rebases small. */
+/************************************************************************************************************
+ * @brief Read back a BM1397 initialization register and verify its value.
+ * @param[in] setting Non-NULL six-byte write payload: address, register, and
+ *                    four expected value bytes. The read targets chip zero.
+ * @return true for a complete command reply with valid preamble, register,
+ *         CRC, and matching value; false for a timeout or validation failure.
+ * @note Clears pending UART input, sends a register-read command, and waits
+ *       up to the 100 ms receive timeout. Requires exclusive UART access
+ *       during initialization, before mining tasks consume replies.
+ ***********************************************************************************************************/
 static bool sff_bm1397_verify(const uint8_t *setting)
 {
     uint8_t request[] = {0x00, setting[1]};
@@ -11,6 +20,16 @@ static bool sff_bm1397_verify(const uint8_t *setting)
            crc5(reply + 2, sizeof(reply) - 2) == 0 && memcmp(reply + 2, setting + 2, 4) == 0;
 }
 
+/************************************************************************************************************
+ * @brief Probe one candidate UART baud rate for a single BM1397.
+ * @return Verified baud rate in bits per second, or zero if the probe fails.
+ * @note Requires an initialized chip and exclusive UART access. Changes both
+ *       ASIC and host baud rates, waits 100 ms, clears UART input, and probes
+ *       chip identity. A private divider advances after failure (27 candidates)
+ *       and resets after success. The caller must reset and reinitialize the
+ *       ASIC after failure before calling again; this function does not restore
+ *       the previous baud rate. Chip detection adds its own receive wait.
+ ***********************************************************************************************************/
 static int sff_bm1397_baud(void)
 {
     /* Each failed attempt is followed by hardware reset/reinitialization.
