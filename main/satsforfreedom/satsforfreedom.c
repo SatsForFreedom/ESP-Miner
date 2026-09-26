@@ -23,9 +23,28 @@ static int64_t last_result_us;
 static char session_id[129];
 static portMUX_TYPE info_lock = portMUX_INITIALIZER_UNLOCKED;
 
+/************************************************************************************************************
+ * @brief Report whether the configured device is board 2.A.
+ * @return true for board 2.A; false for other boards or before configuration.
+ * @note Reads the board selection cached by sff_configure(); has no side effects.
+ ***********************************************************************************************************/
 bool sff_board(void) { return board_2a; }
+/************************************************************************************************************
+ * @brief Select the GPIO used to enable the ASIC core regulator.
+ * @param[in] default_pin GPIO number to use for boards other than 2.A.
+ * @return GPIO14 for board 2.A, otherwise default_pin.
+ * @note Uses the cached board selection; does not configure or drive the GPIO.
+ ***********************************************************************************************************/
 int sff_enable_pin(int default_pin) { return board_2a ? 14 : default_pin; }
 
+/************************************************************************************************************
+ * @brief Apply the board 2.A hardware profile during device initialization.
+ * @param[in,out] g Non-NULL device state with board_version already populated.
+ * @return None.
+ * @note Caches the board selection. For board 2.A, updates the device profile
+ *       and configures GPIO10 as an output driven low for the ASIC BI signal.
+ *       Call once at startup, before ADC initialization and worker tasks.
+ ***********************************************************************************************************/
 void sff_configure(GlobalState *g)
 {
     board_2a = g->DEVICE_CONFIG.board_version && strcmp(g->DEVICE_CONFIG.board_version, "2.A") == 0;
@@ -47,6 +66,38 @@ void sff_configure(GlobalState *g)
     gpio_set_level(GPIO_NUM_10, 0);
 }
 
+/************************************************************************************************************
+ * @brief Read the TPS40305 PGOOD signal on board 2.A.
+ * @return ESP_OK when PGOOD is high or the selected board is not 2.A; ESP_FAIL
+ *         when board 2.A reports PGOOD low.
+ * @note Configures GPIO11 as an input and logs the result. The caller may log
+ *       a failure without aborting startup, as the original firmware did.
+ ***********************************************************************************************************/
+esp_err_t sff_check_pgood(void)
+{
+    if (!board_2a) return ESP_OK;
+
+    gpio_set_direction(GPIO_NUM_11, GPIO_MODE_INPUT);
+    if (gpio_get_level(GPIO_NUM_11) == 1) {
+        ESP_LOGI("satsforfreedom", "TPS40305 reports power good.");
+        return ESP_OK;
+    }
+
+    ESP_LOGE("satsforfreedom", "TPS40305 PGOOD is low.");
+    return ESP_FAIL;
+}
+
+/************************************************************************************************************
+ * @brief Check board 2.A core voltage before initializing the ASIC.
+ * @param[in,out] g Non-NULL device state; supplies the self-test voltage target
+ *                  when active, otherwise the configured NVS target is used.
+ * @return ESP_OK for other boards, or when the target is 1000-1500 mV and the
+ *         ten-sample ADC average is within 150 mV; ESP_FAIL otherwise.
+ * @note Requires initialized ADC, NVS, and regulator interfaces. Blocks for
+ *       approximately one second on board 2.A. On failure, requests regulator
+ *       shutdown and records a hardware fault and ASIC status in g. The
+ *       shutdown request's return value is not checked here.
+ ***********************************************************************************************************/
 esp_err_t sff_check_voltage(GlobalState *g)
 {
     if (!board_2a) return ESP_OK;
@@ -66,6 +117,19 @@ esp_err_t sff_check_voltage(GlobalState *g)
     return ESP_FAIL;
 }
 
+/************************************************************************************************************
+ * @brief Calculate the next BM1397 frequency target under power control.
+ * @param[in] g Non-NULL device state containing current sensor readings,
+ *              hashrate, frequency, ASIC initialization, and self-test state.
+ * @param[in] maximum Configured frequency ceiling in MHz.
+ * @return maximum when control is bypassed; otherwise a target in 50-580 MHz,
+ *         bounded by a valid ceiling. Returns 50 MHz while uninitialized or
+ *         when required measurements are invalid.
+ * @note Reads the NVS power limit in mW; zero means 12 W on board 2.A and
+ *       disables control on other boards. Updates shared efficiency statistics
+ *       and a private power filter. Call from the single power-management task
+ *       at roughly 10 Hz. Does not apply frequency or replace thermal shutdown.
+ ***********************************************************************************************************/
 float sff_frequency(GlobalState *g, float maximum)
 {
     if (g->DEVICE_CONFIG.family.asic.id != BM1397 || g->SELF_TEST_MODULE.is_active) return maximum;
@@ -93,6 +157,13 @@ float sff_frequency(GlobalState *g, float maximum)
     return sff_power_frequency(p->frequency_value, maximum, measured, limit / 1000.0f, p->chip_temp_avg);
 }
 
+/************************************************************************************************************
+ * @brief Store the current Stratum V1 session identifier for telemetry.
+ * @param[in] session NUL-terminated identifier to copy, or NULL to clear it.
+ * @return None.
+ * @note Copies at most 128 characters into shared storage under info_lock;
+ *       the caller retains ownership of the input string.
+ ***********************************************************************************************************/
 void sff_session(const char *session)
 {
     portENTER_CRITICAL(&info_lock);
@@ -100,6 +171,16 @@ void sff_session(const char *session)
     portEXIT_CRITICAL(&info_lock);
 }
 
+/************************************************************************************************************
+ * @brief Append SFF power-limit, efficiency, and session telemetry to JSON.
+ * @param[in,out] root Non-NULL JSON object receiving powerLimitMilliwatts
+ *                     (mW), meanEfficiency (W/TH/s), and sessionId (string).
+ * @param[in] g Reserved device-state parameter; currently unused.
+ * @return None.
+ * @note Reads NVS and snapshots shared telemetry under info_lock. cJSON
+ *       allocates the new fields, which root owns. Allocation failures are
+ *       not reported; call once per object to avoid duplicate field names.
+ ***********************************************************************************************************/
 void sff_add_info(cJSON *root, GlobalState *g)
 {
     char session[sizeof(session_id)];
@@ -113,6 +194,17 @@ void sff_add_info(cJSON *root, GlobalState *g)
     cJSON_AddStringToObject(root, "sessionId", session);
 }
 
+/************************************************************************************************************
+ * @brief Track BM1397 receive activity and restart after prolonged silence.
+ * @param[in] g Non-NULL device state supplying ASIC type and operating status.
+ * @param[in] received true when a valid ASIC result or register reply arrived;
+ *                     false when checking the elapsed silence interval.
+ * @return None; a triggered esp_restart() does not return.
+ * @note Updates a private activity timestamp. Call only from the ASIC result
+ *       task. Non-BM1397 devices are ignored. Inactive, paused, pool-unavailable,
+ *       faulted, or self-test states refresh the timestamp. Otherwise, more
+ *       than ten minutes without valid packets logs an error and restarts.
+ ***********************************************************************************************************/
 void sff_result(GlobalState *g, bool received)
 {
     if (g->DEVICE_CONFIG.family.asic.id != BM1397) return;
@@ -128,6 +220,12 @@ void sff_result(GlobalState *g, bool received)
     }
 }
 
+/************************************************************************************************************
+ * @brief Read the smoothed mining efficiency for display.
+ * @param[in] fallback Efficiency in W/TH/s to use before a sample is available.
+ * @return The accumulated mean efficiency in W/TH/s, or fallback unchanged.
+ * @note Reads shared statistics under info_lock; does not update the filter.
+ ***********************************************************************************************************/
 float sff_efficiency(float fallback)
 {
     portENTER_CRITICAL(&info_lock);
@@ -136,6 +234,15 @@ float sff_efficiency(float fallback)
     return value;
 }
 
+/************************************************************************************************************
+ * @brief Validate the SFF fields present in a partial settings update.
+ * @param[in] root Non-NULL JSON object containing proposed settings.
+ * @return false for an invalid powerLimitMilliwatts value (must be a finite
+ *         integer from 0 to 15000), or for board 2.A voltage/frequency outside
+ *         1000-1500 mV and 50-580 MHz; true otherwise, including absent fields.
+ * @note Uses the cached board selection. Does not modify JSON or persist
+ *       settings; upstream validation must still check all other fields.
+ ***********************************************************************************************************/
 bool sff_validate_settings(const cJSON *root)
 {
     const cJSON *limit = cJSON_GetObjectItemCaseSensitive(root, "powerLimitMilliwatts");
