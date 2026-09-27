@@ -250,7 +250,7 @@ void POWER_MANAGEMENT_task(void * pvParameters)
 
         asic_frequency = sff_frequency(GLOBAL_STATE, asic_frequency);
         if (asic_frequency != last_asic_frequency) {
-            ESP_LOGI(TAG, "New ASIC frequency requested: %g MHz (current: %g MHz)", asic_frequency, last_asic_frequency);
+            ESP_LOGD(TAG, "New ASIC frequency requested: %g MHz (current: %g MHz)", asic_frequency, last_asic_frequency);
             
             power_management->frequency_value = asic_frequency;
             power_management->expected_hashrate = expected_hashrate(GLOBAL_STATE);

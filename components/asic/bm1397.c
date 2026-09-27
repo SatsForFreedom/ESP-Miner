@@ -179,7 +179,7 @@ float BM1397_send_hash_frequency(float target_freq)
 
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
-    ESP_LOGI(TAG, "Setting Frequency to %g MHz (%g)", target_freq, frequency);
+    ESP_LOGD(TAG, "Setting Frequency to %g MHz (%g)", target_freq, frequency);
 
     return frequency;
 }
