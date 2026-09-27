@@ -359,7 +359,7 @@ esp_err_t display_init(GlobalState * GLOBAL_STATE)
         .double_buffer = true,
         .hres = GLOBAL_STATE->DISPLAY_CONFIG.h_res,
         .vres = GLOBAL_STATE->DISPLAY_CONFIG.v_res,
-        .rotation = { .mirror_y = sff_board() }, // Board 2.A: SSD1306 A0/C8 mapping
+        .rotation = { .mirror_x = false, .mirror_y = false },
         .monochrome = true,
         .color_format = LV_COLOR_FORMAT_I1,
         .flags = {
