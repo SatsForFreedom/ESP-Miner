@@ -192,6 +192,24 @@ static void initialize_mdns_if_needed(GlobalState *GLOBAL_STATE) {
         free(final_hostname);
 
         /* Set mDNS instance name */
+        const char *board_version = GLOBAL_STATE->DEVICE_CONFIG.board_version;
+        const char *family_name = GLOBAL_STATE->DEVICE_CONFIG.family.name;
+        const char *asic_name = GLOBAL_STATE->DEVICE_CONFIG.family.asic.name;
+        if (board_version == NULL || board_version[0] == '\0' ||
+            family_name == NULL || family_name[0] == '\0' ||
+            asic_name == NULL || asic_name[0] == '\0') {
+            ESP_LOGW(TAG, "Incomplete device metadata; using fallback values in mDNS TXT records");
+        }
+        if (board_version == NULL || board_version[0] == '\0') {
+            board_version = "Unknown";
+        }
+        if (family_name == NULL || family_name[0] == '\0') {
+            family_name = "Unknown";
+        }
+        if (asic_name == NULL || asic_name[0] == '\0') {
+            asic_name = "Unknown";
+        }
+
         uint8_t mac[6];
         esp_wifi_get_mac(WIFI_IF_STA, mac);
         char mac_suffix[6];
@@ -199,8 +217,8 @@ static void initialize_mdns_if_needed(GlobalState *GLOBAL_STATE) {
 
         char instance_name[64];
         snprintf(instance_name, sizeof(instance_name), "Bitaxe %s %s (%s)",
-                 GLOBAL_STATE->DEVICE_CONFIG.family.name,
-                 GLOBAL_STATE->DEVICE_CONFIG.board_version,
+                 family_name,
+                 board_version,
                  mac_suffix);
         
         /* Add HTTP service */
@@ -223,11 +241,11 @@ static void initialize_mdns_if_needed(GlobalState *GLOBAL_STATE) {
             }
 
             /* Add TXT records for device identification */
-            err = mdns_service_txt_item_set_for_host(instance_name, "_http", "_tcp", NULL, "board", GLOBAL_STATE->DEVICE_CONFIG.board_version);
+            err = mdns_service_txt_item_set_for_host(instance_name, "_http", "_tcp", NULL, "board", board_version);
             if (err != ESP_OK) ESP_LOGW(TAG, "mDNS TXT 'board' failed: %s", esp_err_to_name(err));
-            err = mdns_service_txt_item_set_for_host(instance_name, "_http", "_tcp", NULL, "family", GLOBAL_STATE->DEVICE_CONFIG.family.name);
+            err = mdns_service_txt_item_set_for_host(instance_name, "_http", "_tcp", NULL, "family", family_name);
             if (err != ESP_OK) ESP_LOGW(TAG, "mDNS TXT 'family' failed: %s", esp_err_to_name(err));
-            err = mdns_service_txt_item_set_for_host(instance_name, "_http", "_tcp", NULL, "asic", GLOBAL_STATE->DEVICE_CONFIG.family.asic.name);
+            err = mdns_service_txt_item_set_for_host(instance_name, "_http", "_tcp", NULL, "asic", asic_name);
             if (err != ESP_OK) ESP_LOGW(TAG, "mDNS TXT 'asic' failed: %s", esp_err_to_name(err));
             char asic_count_str[4];
             snprintf(asic_count_str, sizeof(asic_count_str), "%u", GLOBAL_STATE->DEVICE_CONFIG.family.asic_count);
@@ -237,9 +255,9 @@ static void initialize_mdns_if_needed(GlobalState *GLOBAL_STATE) {
             err = mdns_service_txt_item_set_for_host(instance_name, "_http", "_tcp", NULL, "fw_version", app_desc->version);
             if (err != ESP_OK) ESP_LOGW(TAG, "mDNS TXT 'fw_version' failed: %s", esp_err_to_name(err));
             ESP_LOGI(TAG, "mDNS TXT records added: board=%s, family=%s, asic=%s, asic_count=%s, fw_version=%s",
-                     GLOBAL_STATE->DEVICE_CONFIG.board_version,
-                     GLOBAL_STATE->DEVICE_CONFIG.family.name,
-                     GLOBAL_STATE->DEVICE_CONFIG.family.asic.name,
+                     board_version,
+                     family_name,
+                     asic_name,
                      asic_count_str,
                      app_desc->version);
         }
