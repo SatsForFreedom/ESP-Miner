@@ -133,10 +133,6 @@ esp_err_t display_init(GlobalState * GLOBAL_STATE)
         return ESP_OK;
     }
 
-    if (sff_board() && GLOBAL_STATE->DISPLAY_CONFIG.display == SSD1306) {
-        disp_cfg.rotation.mirror_y = true;
-    }
-
     lv_disp_t * disp = lvgl_port_add_disp(&disp_cfg);
     if (!disp) {
         ESP_LOGE(TAG, "lvgl_port_add_disp failed");
