@@ -2,6 +2,7 @@ idf_component_register(
 SRCS
     "satsforfreedom/control.c"
     "satsforfreedom/satsforfreedom.c"
+    "satsforfreedom/ssd1306_page.c"
     "adc.c"
     "i2c_bitaxe.c"
     "main.c"

@@ -1,4 +1,5 @@
 #include "satsforfreedom/satsforfreedom.h"
+#include "satsforfreedom/ssd1306_page.h"
 #include <string.h>
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
@@ -341,6 +342,11 @@ esp_err_t display_init(GlobalState * GLOBAL_STATE)
                 esp_lcd_panel_io_tx_param(io_handle, LCD_SH1107_I2C_CMD, (uint8_t[]) { LCD_SH1107_PARAM_SET_DISP_OFFSET, display_offset }, 2);
             }
         }
+    }
+
+    if (esp_lcd_panel_init_err == ESP_OK && sff_board() && GLOBAL_STATE->DISPLAY_CONFIG.display == SSD1306) {
+        ESP_RETURN_ON_ERROR(sff_ssd1306_enable_page_mode(panel_handle, io_handle), TAG,
+                            "Failed to enable 2.A SSD1306 page addressing");
     }
 
     ESP_LOGI(TAG, "Initialize LVGL");
