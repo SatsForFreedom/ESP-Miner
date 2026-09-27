@@ -13,6 +13,12 @@ esp_err_t device_config_init(GlobalState * GLOBAL_STATE)
     // TODO: Read board version from eFuse
 
     char * board_version = nvs_config_get_string(NVS_CONFIG_BOARD_VERSION);
+    if (board_version == NULL || board_version[0] == '\0') {
+        ESP_LOGE(TAG, "Board version is missing; refusing to start with an invalid device configuration");
+        free(board_version);
+        return ESP_ERR_INVALID_ARG;
+    }
+
     bool found_default = false;
 
     for (int i = 0 ; i < ARRAY_SIZE(default_configs); i++) {
@@ -32,33 +38,51 @@ esp_err_t device_config_init(GlobalState * GLOBAL_STATE)
         ESP_LOGI(TAG, "Custom Board Version: %s", board_version);
 
         GLOBAL_STATE->DEVICE_CONFIG.board_version = strdup(board_version);
+        if (GLOBAL_STATE->DEVICE_CONFIG.board_version == NULL) {
+            ESP_LOGE(TAG, "Failed to copy custom board version; refusing to start");
+            free(board_version);
+            return ESP_ERR_NO_MEM;
+        }
 
         char * device_model = nvs_config_get_string(NVS_CONFIG_DEVICE_MODEL);
 
-        for (int i = 0 ; i < ARRAY_SIZE(default_families); i++) {
-            if (strcasecmp(default_families[i].name, device_model) == 0) {
-                GLOBAL_STATE->DEVICE_CONFIG.family = default_families[i];
+        if (device_model != NULL) {
+            for (int i = 0 ; i < ARRAY_SIZE(default_families); i++) {
+                if (strcasecmp(default_families[i].name, device_model) == 0) {
+                    GLOBAL_STATE->DEVICE_CONFIG.family = default_families[i];
 
-                ESP_LOGI(TAG, "Device Model: %s", GLOBAL_STATE->DEVICE_CONFIG.family.name);
+                    ESP_LOGI(TAG, "Device Model: %s", GLOBAL_STATE->DEVICE_CONFIG.family.name);
 
-                break;
+                    break;
+                }
             }
         }
 
         char * asic_model = nvs_config_get_string(NVS_CONFIG_ASIC_MODEL);
 
-        for (int i = 0 ; i < ARRAY_SIZE(default_asic_configs); i++) {
-            if (strcasecmp(default_asic_configs[i].name, asic_model) == 0) {
-                GLOBAL_STATE->DEVICE_CONFIG.family.asic = default_asic_configs[i];
+        if (asic_model != NULL) {
+            for (int i = 0 ; i < ARRAY_SIZE(default_asic_configs); i++) {
+                if (strcasecmp(default_asic_configs[i].name, asic_model) == 0) {
+                    GLOBAL_STATE->DEVICE_CONFIG.family.asic = default_asic_configs[i];
 
-                ESP_LOGI(TAG, "ASIC: %dx %s (%d cores)", GLOBAL_STATE->DEVICE_CONFIG.family.asic_count, GLOBAL_STATE->DEVICE_CONFIG.family.asic.name, GLOBAL_STATE->DEVICE_CONFIG.family.asic.core_count);
+                    ESP_LOGI(TAG, "ASIC: %dx %s (%d cores)", GLOBAL_STATE->DEVICE_CONFIG.family.asic_count, GLOBAL_STATE->DEVICE_CONFIG.family.asic.name, GLOBAL_STATE->DEVICE_CONFIG.family.asic.core_count);
 
-                break;
+                    break;
+                }
             }
         }
 
         free(device_model);
         free(asic_model);
+    }
+
+    if (GLOBAL_STATE->DEVICE_CONFIG.family.name == NULL ||
+        GLOBAL_STATE->DEVICE_CONFIG.family.name[0] == '\0' ||
+        GLOBAL_STATE->DEVICE_CONFIG.family.asic.name == NULL ||
+        GLOBAL_STATE->DEVICE_CONFIG.family.asic.name[0] == '\0') {
+        ESP_LOGE(TAG, "Unknown or missing device/ASIC model for board '%s'; refusing to start", board_version);
+        free(board_version);
+        return ESP_ERR_INVALID_ARG;
     }
 
     sff_configure(GLOBAL_STATE);
