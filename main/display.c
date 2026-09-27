@@ -1,4 +1,5 @@
 #include "satsforfreedom/satsforfreedom.h"
+#include "satsforfreedom/ssd1306_page.h"
 #include <string.h>
 #include "esp_err.h"
 #include "esp_log.h"
@@ -131,6 +132,11 @@ esp_err_t display_init(GlobalState * GLOBAL_STATE)
             lvgl_port_unlock();
         }
         return ESP_OK;
+    }
+
+    if (sff_board() && GLOBAL_STATE->DISPLAY_CONFIG.display == SSD1306) {
+        ESP_RETURN_ON_ERROR(sff_ssd1306_enable_page_mode(active_panel, io_handle), TAG,
+                            "Failed to enable 2.A SSD1306 page addressing");
     }
 
     lv_disp_t * disp = lvgl_port_add_disp(&disp_cfg);
