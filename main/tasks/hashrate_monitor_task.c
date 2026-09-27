@@ -59,7 +59,7 @@ void hashrate_monitor_reset_measurements(void *pvParameters)
     pthread_mutex_unlock(&HASHRATE_MONITOR_MODULE->lock);
 }
 
-void update_hashrate(measurement_t * measurement, uint32_t value)
+void update_hashrate(measurement_t * measurement, uint32_t value, uint64_t timestamp_us)
 {
     uint8_t flag_long = (value & 0x80000000) >> 31;
     uint32_t hashrate_value = value & 0x7FFFFFFF;    
@@ -67,6 +67,7 @@ void update_hashrate(measurement_t * measurement, uint32_t value)
     if (hashrate_value != 0x007FFFFF && !flag_long) {
         float hashrate = hashrate_value * (float)HASHRATE_UNIT; // Make sure it stays in float
         measurement->hashrate =  hashrate / 1e9f; // Convert to Gh/s
+        measurement->time_us = timestamp_us;
     }
 }
 
@@ -218,8 +219,8 @@ void hashrate_monitor_register_read(void *pvParameters, register_type_t register
 
     switch(register_type) {
         case REGISTER_HASHRATE:
-            update_hashrate(&HASHRATE_MONITOR_MODULE->total_measurement[asic_nr], value);
-            update_hashrate(&HASHRATE_MONITOR_MODULE->domain_measurements[asic_nr][0], value);
+            update_hashrate(&HASHRATE_MONITOR_MODULE->total_measurement[asic_nr], value, timestamp_us);
+            update_hashrate(&HASHRATE_MONITOR_MODULE->domain_measurements[asic_nr][0], value, timestamp_us);
             break;
         case REGISTER_TOTAL_COUNT:
             update_hash_counter(&HASHRATE_MONITOR_MODULE->total_measurement[asic_nr], value, timestamp_us);
