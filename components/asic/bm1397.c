@@ -13,6 +13,7 @@
 #include "crc.h"
 #include "global_state.h"
 #include "pll.h"
+#include "satsforfreedom/satsforfreedom.h"
 
 #define BM1397_CHIP_ID 0x1397
 #define BM1397_CHIP_ID_RESPONSE_LENGTH 9
@@ -229,6 +230,7 @@ uint8_t BM1397_init(GlobalState * GLOBAL_STATE)
     unsigned char init6[9] = {0x00, FAST_UART_CONFIGURATION, 0x06, 0x00, 0x00, 0x0F}; // init6 - fast_uart_configuration
     _send_BM1397((TYPE_CMD | GROUP_ALL | CMD_WRITE), init6, 6, BM1397_SERIALTX_DEBUG);
     if (sff_bm1397_active && !sff_bm1397_verify(init6)) return 0;
+    if (sff_bm1397_active) ESP_LOGI(TAG, "BM1397 initialization registers verified");
 
     // Baud formula = 25M/((denominator+1)*8)
     // The denominator is 5 bits found in the misc_control (bits 9-13)
@@ -271,6 +273,7 @@ void BM1397_send_work(GlobalState * GLOBAL_STATE, const asic_job_t * next_job)
                            GLOBAL_STATE->DEVICE_CONFIG.family.asic.software_midstates,
                            next_job, &job);
     _send_BM1397((TYPE_JOB | GROUP_SINGLE | CMD_WRITE), (uint8_t *)&job, sizeof(job), BM1397_DEBUG_WORK);
+    sff_work_sent();
 }
 
 task_result *BM1397_process_work(GlobalState * GLOBAL_STATE)

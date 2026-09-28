@@ -15,8 +15,10 @@
 #define receive_work bm1397_fake_receive_work
 #define count_asic_chips bm1397_stub_count_chips
 #define do_frequency_transition bm1397_stub_frequency_transition
+#define sff_work_sent bm1397_stub_work_sent
 
 void bm1397_stub_delay(TickType_t ticks);
+void bm1397_stub_work_sent(void);
 
 #define BM1397_init bm1397_test_init
 #define BM1397_send_work bm1397_test_send_work

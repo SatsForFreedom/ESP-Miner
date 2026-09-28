@@ -15,9 +15,33 @@ static bool sff_bm1397_verify(const uint8_t *setting)
     SERIAL_clear_buffer();
     _send_BM1397(TYPE_CMD | GROUP_SINGLE | CMD_READ, request, sizeof(request), false);
     int received = SERIAL_rx(reply, sizeof(reply), 100);
-    return received == (int)sizeof(reply) && reply[0] == 0xAA && reply[1] == 0x55 &&
-           !(reply[8] & 0x80) && reply[7] == setting[1] &&
-           crc5(reply + 2, sizeof(reply) - 2) == 0 && memcmp(reply + 2, setting + 2, 4) == 0;
+    if (received != (int)sizeof(reply)) {
+        ESP_LOGW(TAG, "Register 0x%02X verification failed: expected %u bytes, received %d",
+                 setting[1], (unsigned)sizeof(reply), received);
+        return false;
+    }
+    if (reply[0] != 0xAA || reply[1] != 0x55) {
+        ESP_LOGW(TAG, "Register 0x%02X verification failed: invalid preamble %02X%02X",
+                 setting[1], reply[0], reply[1]);
+        return false;
+    }
+    if ((reply[8] & 0x80) || reply[7] != setting[1]) {
+        ESP_LOGW(TAG, "Register 0x%02X verification failed: response type/register %02X/%02X",
+                 setting[1], reply[8], reply[7]);
+        return false;
+    }
+    if (crc5(reply + 2, sizeof(reply) - 2) != 0) {
+        ESP_LOGW(TAG, "Register 0x%02X verification failed: checksum mismatch", setting[1]);
+        return false;
+    }
+    if (memcmp(reply + 2, setting + 2, 4) != 0) {
+        ESP_LOGW(TAG,
+                 "Register 0x%02X verification failed: wrote %02X%02X%02X%02X, read %02X%02X%02X%02X",
+                 setting[1], setting[2], setting[3], setting[4], setting[5],
+                 reply[2], reply[3], reply[4], reply[5]);
+        return false;
+    }
+    return true;
 }
 
 /************************************************************************************************************
@@ -43,10 +67,12 @@ static int sff_bm1397_baud(void)
         SERIAL_clear_buffer();
         _send_read_address();
         if (count_asic_chips(1, BM1397_CHIP_ID, BM1397_CHIP_ID_RESPONSE_LENGTH) == 1) {
+            ESP_LOGI(TAG, "Verified BM1397 UART at %d baud (divider %u)", baud, divider);
             divider = 0;
             return baud;
         }
     }
     divider = (divider + 1) % 27;
+    ESP_LOGW(TAG, "BM1397 UART probe failed at %d baud; next divider %u", baud, divider);
     return 0;
 }
