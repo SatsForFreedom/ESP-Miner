@@ -32,7 +32,10 @@ void ASIC_result_task(void *pvParameters)
 
         task_result *asic_result = ASIC_process_work(GLOBAL_STATE);
 
-        if (asic_result) sff_result(GLOBAL_STATE, true);
+        if (asic_result) {
+            sff_response(asic_result->register_type == REGISTER_INVALID);
+            sff_result(GLOBAL_STATE, true);
+        }
         if (asic_result == NULL)
         {
             continue;

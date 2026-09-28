@@ -101,9 +101,10 @@ void POWER_MANAGEMENT_init_frequency(GlobalState * GLOBAL_STATE)
     GLOBAL_STATE->POWER_MANAGEMENT_MODULE.actual_frequency = 50.0;
     GLOBAL_STATE->POWER_MANAGEMENT_MODULE.expected_hashrate = expected_hashrate(GLOBAL_STATE);
     
-    char expected_hashrate_str[16] = {0};
-    suffixString(GLOBAL_STATE->POWER_MANAGEMENT_MODULE.expected_hashrate * 1e6, expected_hashrate_str, sizeof(expected_hashrate_str), 0);
-    ESP_LOGI(TAG, "ASIC Frequency: %g MHz, Expected hashrate: %sH/s", frequency, expected_hashrate_str);
+    ESP_LOGI(TAG,
+             "ASIC frequency limit: %.1f MHz, startup frequency: %.1f MHz, expected startup hashrate: %.2f GH/s",
+             frequency, GLOBAL_STATE->POWER_MANAGEMENT_MODULE.frequency_value,
+             GLOBAL_STATE->POWER_MANAGEMENT_MODULE.expected_hashrate);
 }
 
 void POWER_MANAGEMENT_task(void * pvParameters)

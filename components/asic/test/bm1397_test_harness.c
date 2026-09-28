@@ -158,3 +158,13 @@ void bm1397_stub_delay(TickType_t ticks)
 {
     (void)ticks;
 }
+
+/************************************************************************************************************
+ * @brief Replace sff_work_sent() in isolated BM1397 driver tests.
+ * @return None.
+ * @note Intentionally performs no work because SatsForFreedom telemetry is
+ *       outside the scope of packet-encoding and response-decoding tests.
+ ***********************************************************************************************************/
+void bm1397_stub_work_sent(void)
+{
+}

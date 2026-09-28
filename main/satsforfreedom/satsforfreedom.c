@@ -1,4 +1,5 @@
 #include "satsforfreedom.h"
+#include "cJSON.h"
 #include "control.h"
 #include "global_state.h"
 #include "nvs_config.h"
@@ -8,10 +9,12 @@
 #include "esp_system.h"
 #include "esp_log.h"
 #include "driver/gpio.h"
+#include "driver/uart.h"
 #include "freertos/task.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <inttypes.h>
 #include <math.h>
 
 static bool board_2a;
@@ -20,6 +23,16 @@ static unsigned efficiency_samples;
 static float filtered_power;
 static bool power_sampled;
 static int64_t last_result_us;
+static int64_t last_work_us;
+static int64_t last_job_response_us;
+static int64_t zero_hash_since_us;
+static int64_t last_health_log_us;
+static uint32_t work_packets_sent;
+static uint32_t job_responses_received;
+static uint32_t register_responses_received;
+static uint32_t health_work_packets_sent;
+static uint32_t health_job_responses_received;
+static uint32_t health_register_responses_received;
 static char session_id[129];
 static portMUX_TYPE info_lock = portMUX_INITIALIZER_UNLOCKED;
 
@@ -172,6 +185,44 @@ void sff_session(const char *session)
 }
 
 /************************************************************************************************************
+ * @brief Record a work packet sent to the board 2.A BM1397.
+ * @return None.
+ * @note Increments the diagnostic work counter and records the latest transmit
+ *       time under info_lock. Other boards are ignored. This function does not
+ *       alter work submission or ASIC state.
+ ***********************************************************************************************************/
+void sff_work_sent(void)
+{
+    if (!board_2a) return;
+    int64_t now = esp_timer_get_time();
+    portENTER_CRITICAL(&info_lock);
+    ++work_packets_sent;
+    last_work_us = now;
+    portEXIT_CRITICAL(&info_lock);
+}
+
+/************************************************************************************************************
+ * @brief Record a valid response received from the board 2.A BM1397.
+ * @param[in] job_response true for a nonce/job result; false for a register reply.
+ * @return None.
+ * @note Updates the corresponding diagnostic counter under info_lock and, for
+ *       job results, records the latest response time. Other boards are ignored.
+ ***********************************************************************************************************/
+void sff_response(bool job_response)
+{
+    if (!board_2a) return;
+    int64_t now = esp_timer_get_time();
+    portENTER_CRITICAL(&info_lock);
+    if (job_response) {
+        ++job_responses_received;
+        last_job_response_us = now;
+    } else {
+        ++register_responses_received;
+    }
+    portEXIT_CRITICAL(&info_lock);
+}
+
+/************************************************************************************************************
  * @brief Append SFF power-limit, efficiency, and session telemetry to JSON.
  * @param[in,out] root Non-NULL JSON object receiving powerLimitMilliwatts
  *                     (mW), meanEfficiency (W/TH/s), and sessionId (string).
@@ -202,8 +253,9 @@ void sff_add_info(cJSON *root, GlobalState *g)
  * @return None; a triggered esp_restart() does not return.
  * @note Updates a private activity timestamp. Call only from the ASIC result
  *       task. Non-BM1397 devices are ignored. Inactive, paused, pool-unavailable,
- *       faulted, or self-test states refresh the timestamp. Otherwise, more
- *       than ten minutes without valid packets logs an error and restarts.
+ *       faulted, or self-test states refresh the timestamp. Board 2.A emits a
+ *       health summary every 30 seconds while mining. Otherwise, more than ten
+ *       minutes without valid packets logs an error and restarts.
  ***********************************************************************************************************/
 void sff_result(GlobalState *g, bool received)
 {
@@ -213,6 +265,78 @@ void sff_result(GlobalState *g, bool received)
                    g->SYSTEM_MODULE.pools_unavailable || g->SYSTEM_MODULE.hardware_fault ||
                    g->SELF_TEST_MODULE.is_active;
     if (received || stopped || last_result_us == 0) last_result_us = now;
+
+    if (board_2a && !stopped && now - last_health_log_us >= 30000000LL) {
+        uint32_t work_total;
+        uint32_t job_total;
+        uint32_t register_total;
+        int64_t work_time;
+        int64_t job_response_time;
+        portENTER_CRITICAL(&info_lock);
+        work_total = work_packets_sent;
+        job_total = job_responses_received;
+        register_total = register_responses_received;
+        work_time = last_work_us;
+        job_response_time = last_job_response_us;
+        portEXIT_CRITICAL(&info_lock);
+
+        uint32_t work_delta = work_total - health_work_packets_sent;
+        uint32_t job_delta = job_total - health_job_responses_received;
+        uint32_t register_delta = register_total - health_register_responses_received;
+        float last_rx_seconds = (now - last_result_us) / 1000000.0f;
+        float last_work_seconds = work_time > 0 ? (now - work_time) / 1000000.0f : -1.0f;
+        size_t uart_buffered = 0;
+        uint32_t uart_baud = 0;
+        esp_err_t buffered_err = uart_get_buffered_data_len(UART_NUM_1, &uart_buffered);
+        esp_err_t baud_err = uart_get_baudrate(UART_NUM_1, &uart_baud);
+        PowerManagementModule *p = &g->POWER_MANAGEMENT_MODULE;
+
+        bool no_replies = work_total > 0 && job_delta == 0 && register_delta == 0;
+        bool zero_hashing = work_total > 0 && g->SYSTEM_MODULE.current_hashrate <= 0.0f &&
+                            job_delta == 0;
+        bool recent_job_result = job_response_time > 0 && now - job_response_time < 90000000LL;
+        bool uart_stalled = work_total > 0 && now - last_result_us >= 90000000LL &&
+                            work_time > 0 && now - work_time < 5000000LL;
+        if (!zero_hashing || recent_job_result) {
+            zero_hash_since_us = 0;
+        } else if (zero_hash_since_us == 0) {
+            zero_hash_since_us = now;
+        }
+        bool hashing_stalled = zero_hash_since_us > 0 && now - zero_hash_since_us >= 90000000LL;
+        esp_log_level_t level = (no_replies || zero_hashing) ? ESP_LOG_WARN : ESP_LOG_INFO;
+        ESP_LOG_LEVEL_LOCAL(level, "satsforfreedom",
+                            "ASIC health: tx_work=%" PRIu32 " (+%" PRIu32 "), rx_job=%" PRIu32
+                            " (+%" PRIu32 "), rx_reg=%" PRIu32 " (+%" PRIu32
+                            "), last_rx=%.1fs, last_work=%.1fs, UART=%" PRIu32
+                            " baud/%u buffered, hash=%.2f GH/s, freq=%.1f/%.1f MHz,"
+                            " core=%.0f mV, input=%.0f mV, power=%.2f W, current=%.0f mA, temp=%.1f C",
+                            work_total, work_delta, job_total, job_delta, register_total, register_delta,
+                            last_rx_seconds, last_work_seconds,
+                            baud_err == ESP_OK ? uart_baud : 0,
+                            buffered_err == ESP_OK ? (unsigned)uart_buffered : 0,
+                            g->SYSTEM_MODULE.current_hashrate, p->actual_frequency, p->frequency_value,
+                            p->core_voltage, p->voltage, p->power, p->current, p->chip_temp_avg);
+
+        if (no_replies) {
+            ESP_LOGW("satsforfreedom",
+                     "No valid ASIC UART replies in the last health interval despite work transmission");
+        } else if (zero_hashing) {
+            ESP_LOGW("satsforfreedom",
+                     "ASIC register traffic is present, but no job results or measured hashrate were observed");
+        }
+
+        if (uart_stalled || hashing_stalled) {
+            ESP_LOGE("satsforfreedom",
+                     "ASIC failed to produce results for at least 90 seconds (%s); restarting system",
+                     uart_stalled ? "UART replies stopped" : "zero hashrate");
+            esp_restart();
+        }
+
+        health_work_packets_sent = work_total;
+        health_job_responses_received = job_total;
+        health_register_responses_received = register_total;
+        last_health_log_us = now;
+    }
     /* NULL also means an ignored packet. Use elapsed silence, not packet count. */
     if (!stopped && now - last_result_us > 600000000LL) {
         ESP_LOGE("satsforfreedom", "BM1397 silent for ten minutes; restarting");

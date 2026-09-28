@@ -1,9 +1,9 @@
 #ifndef SATSFORFREEDOM_H
 #define SATSFORFREEDOM_H
 #include "esp_err.h"
-#include "cJSON.h"
 #include <stdbool.h>
 typedef struct GlobalState GlobalState;
+typedef struct cJSON cJSON;
 
 /************************************************************************************************************
  * @brief Report whether board 2.A is the selected device.
@@ -102,4 +102,19 @@ void sff_session(const char *session);
  *       suppress the watchdog.
  ***********************************************************************************************************/
 void sff_result(GlobalState *g, bool received);
+
+/************************************************************************************************************
+ * @brief Record a work packet sent to the board 2.A BM1397.
+ * @return None.
+ * @note Updates diagnostic counters only; it does not alter mining behavior.
+ ***********************************************************************************************************/
+void sff_work_sent(void);
+
+/************************************************************************************************************
+ * @brief Record a valid response received from the board 2.A BM1397.
+ * @param[in] job_response true for a nonce/job result, false for a register reply.
+ * @return None.
+ * @note Updates diagnostic counters only; it does not alter mining behavior.
+ ***********************************************************************************************************/
+void sff_response(bool job_response);
 #endif
