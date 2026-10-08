@@ -49,6 +49,7 @@ logic under test is unchanged.
 | --- | --- |
 | `test_pll.c` | PLL divider selection and the calculated ASIC frequency. |
 | `test_timeout.c` | ASIC timeout calculation for different chips, chain sizes, version spaces, and the zero-chip default. |
+| `test_serial_frame.c` | Production response framing with scripted UART input, including leading noise and recovery after a bad-CRC candidate. |
 
 ## Disabled example
 
