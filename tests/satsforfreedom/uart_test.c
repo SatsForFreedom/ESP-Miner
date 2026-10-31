@@ -13,6 +13,8 @@
 #define BM1397_CHIP_ID 0x1397
 #define BM1397_CHIP_ID_RESPONSE_LENGTH 9
 #define ESP_OK 0
+#define ESP_LOGW(tag, ...) ((void)0)
+#define ESP_LOGI(tag, ...) ((void)0)
 #define pdMS_TO_TICKS(x) (x)
 static uint8_t reply[9];
 static int reply_length = 9;
